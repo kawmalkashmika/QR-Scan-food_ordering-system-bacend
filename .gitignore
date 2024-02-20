@@ -1,0 +1,21 @@
+# Ignore IntelliJ IDEA files
+.idea/
+
+# Ignore Node.js dependencies
+node_modules/
+
+# Ignore environment-specific configuration files
+config/*.env
+
+# Ignore logs
+logs/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore npm debug log
+npm-debug.log
+
+# Ignore Visual Studio Code settings
+.vscode/
