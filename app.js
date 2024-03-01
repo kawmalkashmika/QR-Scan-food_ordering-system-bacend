@@ -7,6 +7,8 @@ const tableRoutes=require('./routes/table');
 const userRoutes=require('./routes/user')
 const cors = require("cors");
 const compression = require("compression");
+const swaggerUi = require('swagger-ui-express');
+const specs = require('./config/swaggerConfig');
 
 
 app.use((req, res, next) => {
@@ -23,6 +25,7 @@ app.use(cors());
 app.use(express.json());
 app.use(compression());
 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 app.use('/inventory',inventoryRoutes);
 app.use('/table',tableRoutes);
 app.use('/user',userRoutes);
