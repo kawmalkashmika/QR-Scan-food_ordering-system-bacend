@@ -8,7 +8,8 @@ const OTPStatus = {
     SENT: 'SENT',
     VERIFY: 'VERIFY',
     EXPIRED: 'EXPIRED',
-    FAILED: 'FAILED'
+    FAILED: 'FAILED',
+    RESEND:'RESEND'
 };
 
 
@@ -70,18 +71,18 @@ router.post('/verify-otp', (req, res) => {
 
 });
 
-router.get('/resend-otp',(req, res)=>{
-    const {userId}=req.body.userId;
+router.post('/resend-otp',(req, res)=>{
+    const {userId}=req.body;
     const connection = dbConnection.createConnection();
 
     const newOTP=generateOTP();
     sendOTPtoMobile(newOTP);
-    connection.query('UPDATE core_mobile_user SET OTP=? WHERE USER_ID=?', [newOTP,userId], (error, results, fields) => {
+    connection.query('UPDATE core_mobile_user SET OTP=?,OTP_STATUS=? WHERE USER_ID=?', [newOTP,OTPStatus.RESEND,userId], (error, results, fields) => {
         if (error) {
-            logger.error('Error occurred updating OTP data from database', error);
+            logger.error('Error occurred updating OTP from database', error);
             commonResponse.sendErrorResponse(res, error.code, 500);
         } else {
-            logger.info("Resend OTP to user ");
+            logger.info("Resend OTP to user");
             commonResponse.sendSuccessResponse(res);
 
         }
