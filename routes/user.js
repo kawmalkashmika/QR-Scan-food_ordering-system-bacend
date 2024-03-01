@@ -155,6 +155,29 @@ router.post('/verify-otp', (req, res) => {
 router.post('/resend-otp', (req, res) => {
     // Your existing route handler logic
 });
+
+/**
+ * @swagger
+ * /resend-otp:
+ *   post:
+ *     summary: Resend OTP
+ *     description: Resends OTP to the user associated with the provided user ID.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: The ID of the user to whom OTP needs to be resent.
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *       500:
+ *         description: Internal server error
+ */
 router.post('/resend-otp',(req, res)=>{
     const {userId}=req.body;
     const connection = dbConnection.createConnection();
