@@ -13,6 +13,36 @@ const OTPStatus = {
 };
 
 
+/**
+ * @swagger
+ * /user/register-user:
+ *   post:
+ *     summary: Register a new user
+ *     description: Creates a new user with the provided mobile number and sends OTP for verification.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mobileNumber:
+ *                 type: string
+ *                 description: The mobile number of the user.
+ *     responses:
+ *       200:
+ *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 userId:
+ *                   type: integer
+ *                   description: The ID of the newly created user.
+ *       500:
+ *         description: Internal server error
+ */
 router.post('/register-user', (req, res) => {
     const mobileNumber = req.body.mobileNumber;
     logger.info("User Registration Request " + mobileNumber);
@@ -38,6 +68,35 @@ router.post('/register-user', (req, res) => {
 
 });
 
+/**
+ * @swagger
+ * /user/verify-otp:
+ *   post:
+ *     summary: Verify OTP for user
+ *     description: Verifies the OTP provided by the user for authentication.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: The ID of the user.
+ *               otp:
+ *                 type: string
+ *                 description: The OTP provided by the user for verification.
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *       400:
+ *         description: Invalid OTP
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
 router.post('/verify-otp', (req, res) => {
     const {userId, otp} = req.body;
     const connection = dbConnection.createConnection();
@@ -71,6 +130,31 @@ router.post('/verify-otp', (req, res) => {
 
 });
 
+/**
+ * @swagger
+ * /user/resend-otp:
+ *   post:
+ *     summary: Resend OTP to a user
+ *     description: Resends OTP to the specified user.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: The ID of the user to resend OTP.
+ *     responses:
+ *       200:
+ *         description: Successful operation
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/resend-otp', (req, res) => {
+    // Your existing route handler logic
+});
 router.post('/resend-otp',(req, res)=>{
     const {userId}=req.body;
     const connection = dbConnection.createConnection();
