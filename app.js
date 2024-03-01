@@ -3,6 +3,8 @@ const app = express();
 const logger=require('./util/logger');
 const port = 3000;
 const inventoryRoutes = require('./routes/inventory');
+const tableRoutes=require('./routes/table');
+const userRoutes=require('./routes/user')
 const cors = require("cors");
 const compression = require("compression");
 
@@ -22,6 +24,8 @@ app.use(express.json());
 app.use(compression());
 
 app.use('/inventory',inventoryRoutes);
+app.use('/table',tableRoutes);
+app.use('/user',userRoutes);
 
 
 app.listen(port, () => {
