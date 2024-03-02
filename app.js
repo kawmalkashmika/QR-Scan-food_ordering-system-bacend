@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const logger=require('./util/logger');
-const port = 3000;
+const port = 8080;
 const inventoryRoutes = require('./routes/inventory');
 const tableRoutes=require('./routes/table');
 const userRoutes=require('./routes/user')
