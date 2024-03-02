@@ -9,6 +9,10 @@ const cors = require("cors");
 const compression = require("compression");
 const swaggerUi = require('swagger-ui-express');
 const specs = require('./config/swaggerConfig');
+const {ENV,environment} = require("./config/envConfig");
+
+
+
 
 
 app.use((req, res, next) => {
@@ -20,7 +24,6 @@ app.use((req, res, next) => {
    logger.info(log);
    next();
 });
-
 app.use(cors());
 app.use(express.json());
 app.use(compression());
@@ -30,7 +33,7 @@ app.use('/inventory',inventoryRoutes);
 app.use('/table',tableRoutes);
 app.use('/user',userRoutes);
 
-
 app.listen(port, () => {
    logger.info(`Server is running on port ${port}`);
+   logger.info(`Application running on ${environment} environment`);
 });

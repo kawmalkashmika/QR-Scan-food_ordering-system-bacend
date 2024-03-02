@@ -1,18 +1,11 @@
 const mysql = require('mysql');
-const config = require('./dbConfig');
+const {databaseCredentials} = require('./dbConfig');
 const {loggers} = require("winston");
 const logger = require("../util/logger");
 
 // Function to create a database connection
 function createConnection() {
-
-  const connection = mysql.createConnection({
-    host: config.DEV.host,
-    user: config.DEV.user,
-    password: config.DEV.password,
-    database: config.DEV.database
-  });
-
+  const connection = mysql.createConnection(databaseCredentials);
 
   connection.connect((err) => {
     if (err) {
