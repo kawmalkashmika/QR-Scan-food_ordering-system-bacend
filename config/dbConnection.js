@@ -2,35 +2,35 @@ const mysql = require('mysql');
 const {databaseCredentials} = require('./dbConfig');
 const {loggers} = require("winston");
 const logger = require("../util/logger");
+let pool;
 
-// Function to create a database connection
-function createConnection() {
-  const connection = mysql.createConnection(databaseCredentials);
-
-  connection.connect((err) => {
-    if (err) {
-      logger.error('Error connecting to database:', err);
-      return;
-    }
-  });
-
-  return connection;
-
+// Function to initialize the connection pool
+function initializePool() {
+  try{
+    pool = mysql.createPool(databaseCredentials);
+    logger.info('Initialized database connection');
+  }catch (error){
+    logger.info('Unable to Initialized database connection.'+error);
+  }
 
 }
 
-// Function to close a database connection
-function closeConnection(connection) {
-  connection.end((err) => {
+// Function to get a connection from the pool
+function getConnectionFromPool(callback,requestId) {
+  pool.getConnection((err, connection) => {
     if (err) {
-      logger.error('Unable to close database connection',err)
+      logger.error(`Unable to Acquire connection to  request id : ${requestId} `);
+      callback(err, null);
+    }else{
+      logger.info(`Acquired connection to request id : ${requestId} `);
+      callback(null, connection);
     }
   });
 }
 
 module.exports = {
-  createConnection,
-  closeConnection
+  initializePool,
+  getConnectionFromPool
 };
 
 

@@ -1,7 +1,6 @@
 const express = require('express');
 const app = express();
 const logger=require('./util/logger');
-const port = 8080;
 const inventoryRoutes = require('./routes/inventory');
 const tableRoutes=require('./routes/table');
 const userRoutes=require('./routes/user')
@@ -10,18 +9,29 @@ const compression = require("compression");
 const swaggerUi = require('swagger-ui-express');
 const specs = require('./config/swaggerConfig');
 const {ENV,environment} = require("./config/envConfig");
+const database = require('./config/dbConnection');
+const uuid = require('uuid');
+const port = 8080;
 
 
 
 
 
 app.use((req, res, next) => {
+   //Add request id
+   req.requestId = uuid.v4();
+
+   //Logging details
    var requestedUrl = req.protocol + "://" + req.get("Host") + req.url;
    let log = " recived request. "+"["+req.method+"] " + requestedUrl;
    if (req.query && req.query.user) {
-      log = log + ", by user : " + req.query.user;
+      log = log + ", by user : " + req.query.user+" REQUEST ID :"+req.requestId;
    }
    logger.info(log);
+
+
+
+
    next();
 });
 app.use(cors());
@@ -36,4 +46,6 @@ app.use('/user',userRoutes);
 app.listen(port, () => {
    logger.info(`Server is running on port ${port}`);
    logger.info(`Application running on ${environment} environment`);
+   database.initializePool();
+
 });
