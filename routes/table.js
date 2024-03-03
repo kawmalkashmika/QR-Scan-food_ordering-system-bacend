@@ -41,17 +41,27 @@ const status = {
  *         description: Internal server error
  */
 router.get('/get-all-table-details', (req, res) => {
-    const connection = dbConnection.createConnection();
-    connection.query('SELECT ID_LOCATION_TABLE,ID_LOCATION_SECTION,TABLE_NAME,IS_ACTIVE FROM core_pos_location_table WHERE IS_ACTIVE=?',[status.ACTIVE], (error, results, fields) => {
-        if (error) {
-            logger.error('Error retrieving data from database',error);
-            res.status(500).send('Error retrieving data from database');
-        }
-        res.status(200);
-        res.json(results);
-    });
+   dbConnection.getConnectionFromPool((err,connection)=>{
+       if(err){
+           logger.error(`Unable to acquire connection form pool ${req.requestId}`);
+           commonResponse.sendErrorResponse(res,"Unable to connect database",req.requestId);
+       }else{
+           connection.query('SELECT ID_LOCATION_TABLE,ID_LOCATION_SECTION,TABLE_NAME,IS_ACTIVE FROM core_pos_location_table WHERE IS_ACTIVE=?',[status.ACTIVE], (error, results, fields) => {
+               if (error) {
+                   logger.error('Error retrieving data from database',error);
+                   commonResponse.sendErrorResponse(res,"Error retrieving data from database",req.requestId);
+               }
+               connection.release();
+               commonResponse.sendSuccessResponse(res,results,req.requestId);
 
-    dbConnection.closeConnection(connection);
+           });
+       }
+
+   },req.requestId);
+
+
+
+
 });
 
 /**
