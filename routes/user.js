@@ -4,6 +4,7 @@ const express = require('express');
 const commonResponse = require('../commonResponse/commonResponse');
 const {json} = require("express");
 const router = express.Router();
+const Request = require('request');
 const OTPStatus = {
     SENT: 'SENT',
     VERIFY: 'VERIFY',
@@ -47,7 +48,7 @@ router.post('/register-user', (req, res) => {
     const mobileNumber = req.body.mobileNumber;
     logger.info("User Registration Request " + mobileNumber);
     let otp = generateOTP();
-    sendOTPtoMobile(otp);
+    sendOTPtoMobile(otp,mobileNumber);
 
    dbConnection.getConnectionFromPool((err,connection)=>{
        connection.query('INSERT INTO core_mobile_user(MOBILE_NUMBER, OTP, OTP_STATUS) VALUES (?,?,?)', [mobileNumber, otp, OTPStatus.SENT], (error, results, fields) => {
@@ -129,9 +130,6 @@ router.post('/verify-otp', (req, res) => {
         });
     },req.requestId)
 
-
-
-
 });
 
 /**
@@ -158,15 +156,16 @@ router.post('/verify-otp', (req, res) => {
  */
 router.post('/resend-otp',(req, res)=>{
     const {userId}=req.body;
-    const newOTP=generateOTP();
-    sendOTPtoMobile(newOTP);
+
 
     dbConnection.getConnectionFromPool((err,connection)=>{
-        connection.query('SELECT USER_ID FROm core_mobile_user WHERE USER_ID=?',[userId],(error,results,field)=>{
+        connection.query('SELECT USER_ID,MOBILE_NUMBER FROM core_mobile_user WHERE USER_ID=?',[userId],(error,results,field)=>{
             if(results.length===0){
                 logger.error('User not found');
                 commonResponse.sendErrorResponse(res,'User not found',404);
             }else{
+                const newOTP=generateOTP();
+                sendOTPtoMobile(newOTP,results[0].MOBILE_NUMBER);
                 connection.query('UPDATE core_mobile_user SET OTP=?,OTP_STATUS=? WHERE USER_ID=?', [newOTP,OTPStatus.RESEND,userId], (error, results, fields) => {
                     if (error) {
                         logger.error('Error occurred updating OTP from database', error);
@@ -180,13 +179,9 @@ router.post('/resend-otp',(req, res)=>{
 
                 });
             }
-
-
-        })
-        })
-
-
-})
+        });
+        });
+});
 
 
 
@@ -196,9 +191,26 @@ function generateOTP() {
     return otp;
 }
 
-function sendOTPtoMobile(otp) {
-    /*todo-need to develop SMS gateway integration*/
-    logger.info("Send OTP to Mobile");
+function sendOTPtoMobile(otp,mobileNumber) {
+    console.log(mobileNumber.substring(1));
+    const message =
+        `Dear Customer,
+Your One-Time Password (OTP) for verification is: ${otp}. Please use this OTP to complete your verification process.
+Note: This OTP is valid only for 5 minutes.
+Thank you,
+[Zincat Technologies]`;
+    const url = `https://richcommunication.dialog.lk/api/sms/inline/send?q=15669742473072&destination=94${mobileNumber.substring(1)}&message=${message}&from=Nalanda`
+
+    Request.get(url, (error, response, body) => {
+            if (response) {
+                logger.info("Send OTP to Mobile");
+            }
+            if (error) {
+                logger.info("Unable to sent OTP to mobile",error);
+            }
+        }
+    );
+
 }
 
 
