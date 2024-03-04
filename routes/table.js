@@ -8,6 +8,10 @@ const status = {
     ACTIVE: 1,
     INACTIVE: 0,
 };
+const tableStatus={
+    RESERVED:"reserved",
+    AVAILABLE:"available",
+}
 
 /**
  * @swagger
@@ -62,6 +66,72 @@ router.get('/get-all-table-details', (req, res) => {
 
 });
 
+
+/**
+ * @swagger
+ * /table/get-table-status:
+ *   get:
+ *     summary: Retrieve table status from the database
+ *     description: Retrieves the status of a table from the database based on the provided table ID.
+ *     parameters:
+ *       - in: query
+ *         name: tableId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the table to retrieve status for.
+ *     responses:
+ *       '200':
+ *         description: A successful response with the table status.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tableId:
+ *                   type: string
+ *                   description: The ID of the table.
+ *                 status:
+ *                   type: string
+ *                   description: The status of the table.
+ *       '400':
+ *         description: Bad request. Missing or invalid parameters.
+ *       '500':
+ *         description: Internal server error. Unable to retrieve data from the database.
+ */
+router.get('/get-table-status',(req,res)=>{
+    let tableId=req.query.tableId;
+    dbConnection.getConnectionFromPool((err,connection)=>{
+        if(err){
+            logger.error('Error acquire connection from the pool', err);
+            commonResponse.sendErrorResponse(res, 'Error acquire connection from the pool', 500);
+        }else{
+            connection.query('SELECT * FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND IS_ACTIVE=?',[tableId,status.ACTIVE],(error,results,fields)=>{
+                if(err){
+                    logger.error('Unable retrieve data from database', err);
+                    commonResponse.sendErrorResponse(res, 'Unable retrieve data from database', 500);
+                    console.log('inside error');
+                }else{
+                    console.log(results);
+                    console.log('inside else');
+                    if(results.length>=1){
+                        commonResponse.sendSuccessResponse(res,{
+                            'tableId':tableId,
+                            'status':tableStatus.RESERVED
+                        },req.requestId);
+                    }else{
+                        commonResponse.sendSuccessResponse(res,{
+                            'tableId':tableId,
+                            'status':tableStatus.AVAILABLE
+                        },req.requestId);
+                    }
+                }
+            })
+        }
+    },req.requestId)
+})
+
+
 /**
  * @swagger
  * /table/get-reservation-pin:
@@ -105,9 +175,8 @@ router.post('/get-reservation-pin', (req, res) => {
 
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
-            logger.error('Error retrieving connection from the pool', err);
-            commonResponse.sendErrorResponse(res, 'Error retrieving connection from the pool', 500);
-            return;
+            logger.error('Error acquire connection from the pool', err);
+            commonResponse.sendErrorResponse(res, 'Error acquire connection from the pool', 500);
         }
 
         connection.beginTransaction((err) => {
