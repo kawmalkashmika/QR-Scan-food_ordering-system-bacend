@@ -2,6 +2,8 @@ const dbConnection = require("../config/dbConnection");
 const logger=require('../util/logger');
 const express = require('express');
 const router = express.Router();
+const commonResponse = require('../commonResponse/commonResponse');
+
 
 /**
  * @swagger
@@ -24,16 +26,17 @@ const router = express.Router();
  *         description: Internal server error
  */
 router.get('/get-all-item-details', (req, res) => {
-    const connection = dbConnection.createConnection();
-    connection.query('SELECT * FROM view_all_stock_item_details_location_batch_price_chanel', (error, results, fields) => {
-        if (error) {
-            logger.error('Error retrieving data from database',error);
-            res.status(500).send('Error retrieving data from database');
-        }
-        dbConnection.closeConnection(connection);
-        res.status(200);
-        res.json(results);
-    });
+    dbConnection.getConnectionFromPool((err,connection)=>{
+        connection.query('SELECT * FROM view_all_stock_item_details_location_batch_price_chanel', (error, results, fields) => {
+            if (error) {
+                logger.error('Error retrieving data from database',error);
+                commonResponse.sendErrorResponse(res,"Error retrieving data from database",req.requestId)
+            }
+            connection.release();
+            commonResponse.sendSuccessResponse(res,results,req.requestId);
+        });
+    },req.requestId)
+
 
 
 });

@@ -4,6 +4,6 @@ const ENV = {
     PROD: 'PROD',
 };
 
-const environment=ENV.QA;
+const environment=ENV.DEV;
 
 module.exports = {ENV, environment};

@@ -49,22 +49,23 @@ router.post('/register-user', (req, res) => {
     let otp = generateOTP();
     sendOTPtoMobile(otp);
 
-    const connection = dbConnection.createConnection();
-    connection.query('INSERT INTO core_mobile_user(MOBILE_NUMBER, OTP, OTP_STATUS) VALUES (?,?,?)', [mobileNumber, otp, OTPStatus.SENT], (error, results, fields) => {
-        if (error) {
-            logger.error('Error occurred while register user', error);
-            commonResponse.sendErrorResponse(res, error.code, 500)
-        } else {
-            logger.info("User created successfully under " + mobileNumber);
-            commonResponse.sendSuccessResponse(res, {
-                "userId": results.insertId
-            });
+   dbConnection.getConnectionFromPool((err,connection)=>{
+       connection.query('INSERT INTO core_mobile_user(MOBILE_NUMBER, OTP, OTP_STATUS) VALUES (?,?,?)', [mobileNumber, otp, OTPStatus.SENT], (error, results, fields) => {
+           if (error) {
+               logger.error('Error occurred while register user', error);
+               commonResponse.sendErrorResponse(res, error.code, 500)
+           } else {
+               logger.info("User created successfully under " + mobileNumber);
+               commonResponse.sendSuccessResponse(res, {
+                   "userId": results.insertId
+               });
 
-        }
-        dbConnection.closeConnection(connection);
+           }
+           connection.release();
 
-    });
+       });
 
+   },req.requestId)
 
 });
 
@@ -99,33 +100,36 @@ router.post('/register-user', (req, res) => {
  */
 router.post('/verify-otp', (req, res) => {
     const {userId, otp} = req.body;
-    const connection = dbConnection.createConnection();
 
-    connection.query('SELECT * FROM core_mobile_user WHERE USER_ID = ?', [userId], (error, results, fields) => {
+    dbConnection.getConnectionFromPool((err,connection)=>{
+        connection.query('SELECT * FROM core_mobile_user WHERE USER_ID = ?', [userId], (error, results, fields) => {
 
-        if (error) {
-            logger.error('Error occurred while retrieve user', error);
-            return commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
-        }
-        if (results.length === 0) {
-            return commonResponse.sendErrorResponse(res, 'User not found', 404);
-        }
+            if (error) {
+                logger.error('Error occurred while retrieve user', error);
+                return commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
+            }
+            if (results.length === 0) {
+                return commonResponse.sendErrorResponse(res, 'User not found', 404);
+            }
 
-        const dbOTP = results[0].OTP; //
-        if (otp === dbOTP) {
-            connection.query('UPDATE core_mobile_user SET OTP_STATUS = ? WHERE USER_ID = ?', [OTPStatus.VERIFY, userId], (error, results, fields) => {
-                if (error) {
-                    logger.error('Unable to update OTP Status', error);
-                    return commonResponse.sendErrorResponse(res, 'Unable to update OTP Status', 500);
-                }
-                dbConnection.closeConnection(connection);
-            });
-            return commonResponse.sendSuccessResponse(res, 'OTP verified successfully');
-        } else {
-            dbConnection.closeConnection(connection);
-            return commonResponse.sendErrorResponse(res, 'Invalid OTP', 400);
-        }
-    });
+            const dbOTP = results[0].OTP; //
+            if (otp === dbOTP) {
+                connection.query('UPDATE core_mobile_user SET OTP_STATUS = ? WHERE USER_ID = ?', [OTPStatus.VERIFY, userId], (error, results, fields) => {
+                    if (error) {
+                        logger.error('Unable to update OTP Status', error);
+                        return commonResponse.sendErrorResponse(res, 'Unable to update OTP Status', 500);
+                    }
+                    connection.release();
+                });
+                return commonResponse.sendSuccessResponse(res, 'OTP verified successfully');
+            } else {
+               connection.release();
+                return commonResponse.sendErrorResponse(res, 'Invalid OTP', 400);
+            }
+        });
+    },req.requestId)
+
+
 
 
 });
@@ -154,22 +158,34 @@ router.post('/verify-otp', (req, res) => {
  */
 router.post('/resend-otp',(req, res)=>{
     const {userId}=req.body;
-    const connection = dbConnection.createConnection();
-
     const newOTP=generateOTP();
     sendOTPtoMobile(newOTP);
-    connection.query('UPDATE core_mobile_user SET OTP=?,OTP_STATUS=? WHERE USER_ID=?', [newOTP,OTPStatus.RESEND,userId], (error, results, fields) => {
-        if (error) {
-            logger.error('Error occurred updating OTP from database', error);
-            commonResponse.sendErrorResponse(res, error.code, 500);
-        } else {
-            logger.info("Resend OTP to user");
-            commonResponse.sendSuccessResponse(res);
 
-        }
-        dbConnection.closeConnection(connection);
+    dbConnection.getConnectionFromPool((err,connection)=>{
+        connection.query('SELECT USER_ID FROm core_mobile_user WHERE USER_ID=?',[userId],(error,results,field)=>{
+            if(results.length===0){
+                logger.error('User not found');
+                commonResponse.sendErrorResponse(res,'User not found',404);
+            }else{
+                connection.query('UPDATE core_mobile_user SET OTP=?,OTP_STATUS=? WHERE USER_ID=?', [newOTP,OTPStatus.RESEND,userId], (error, results, fields) => {
+                    if (error) {
+                        logger.error('Error occurred updating OTP from database', error);
+                        commonResponse.sendErrorResponse(res, error.code, 500);
+                    } else {
+                        logger.info("Resend OTP to user");
+                        commonResponse.sendSuccessResponse(res);
 
-    });
+                    }
+                    connection.release();
+
+                });
+            }
+
+
+        })
+        })
+
+
 })
 
 

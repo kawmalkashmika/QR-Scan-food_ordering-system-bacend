@@ -1,5 +1,5 @@
 const dbConnection = require("../config/dbConnection");
-const logger=require('../util/logger');
+const logger = require('../util/logger');
 const express = require('express');
 const {error} = require("winston");
 const commonResponse = require('../commonResponse/commonResponse');
@@ -41,25 +41,23 @@ const status = {
  *         description: Internal server error
  */
 router.get('/get-all-table-details', (req, res) => {
-   dbConnection.getConnectionFromPool((err,connection)=>{
-       if(err){
-           logger.error(`Unable to acquire connection form pool ${req.requestId}`);
-           commonResponse.sendErrorResponse(res,"Unable to connect database",req.requestId);
-       }else{
-           connection.query('SELECT ID_LOCATION_TABLE,ID_LOCATION_SECTION,TABLE_NAME,IS_ACTIVE FROM core_pos_location_table WHERE IS_ACTIVE=?',[status.ACTIVE], (error, results, fields) => {
-               if (error) {
-                   logger.error('Error retrieving data from database',error);
-                   commonResponse.sendErrorResponse(res,"Error retrieving data from database",req.requestId);
-               }
-               connection.release();
-               commonResponse.sendSuccessResponse(res,results,req.requestId);
+    dbConnection.getConnectionFromPool((err, connection) => {
+        if (err) {
+            logger.error(`Unable to acquire connection form pool ${req.requestId}`);
+            commonResponse.sendErrorResponse(res, "Unable to connect database", req.requestId);
+        } else {
+            connection.query('SELECT ID_LOCATION_TABLE,ID_LOCATION_SECTION,TABLE_NAME,IS_ACTIVE FROM core_pos_location_table WHERE IS_ACTIVE=?', [status.ACTIVE], (error, results, fields) => {
+                if (error) {
+                    logger.error('Error retrieving data from database', error);
+                    commonResponse.sendErrorResponse(res, "Error retrieving data from database", req.requestId);
+                }
+                connection.release();
+                commonResponse.sendSuccessResponse(res, results, req.requestId);
 
-           });
-       }
+            });
+        }
 
-   },req.requestId);
-
-
+    }, req.requestId);
 
 
 });
@@ -102,42 +100,151 @@ router.get('/get-all-table-details', (req, res) => {
  *       500:
  *         description: Internal server error
  */
-router.post('/get-reservation-pin',(req, res)=>{
-    let {tableId,userId}=req.body;
+router.post('/get-reservation-pin', (req, res) => {
+    let { tableId, userId } = req.body;
 
-    const connection = dbConnection.createConnection();
-    //check current tables has already active reservation
-    connection.query('SELECT * FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND IS_ACTIVE=?',[tableId,status.ACTIVE],(error,results,fields)=>{
-        if(error){
-            logger.error('Error retrieving data from database',error);
-            res.status(500).send('Error retrieving data from database');
-        }else{
-            console.log(results);
-            if(results.length!=0){
-                logger.error('Unable to reserve for user ',userId);
-                res.status(409).send('Table already reserved');
-            }else {
-                let reservationPIN=generateReservationPIN();
-                connection.query('INSERT INTO core_mobile_reservation (`RESERVED_USER_ID`,`RESERVED_TABLE_ID`,`RESERVATION_PIN`,`IS_ACTIVE`) VALUES(?,?,?,?)',[userId,tableId,reservationPIN,status.ACTIVE],(error,results,fields)=>{
-                    if(error){
-                        logger.error('Unable Reserve Table',error);
-                        res.status(500).send('Unable to reserve table');
-                    }else{
-                        commonResponse.sendSuccessResponse(res,{
-                            "reservationPin":reservationPIN,
-                            "reservationId":results.insertId,
-
-
-                        });
-                    }
-                    dbConnection.closeConnection(connection);
-                });
-
-
-            }
+    dbConnection.getConnectionFromPool((err, connection) => {
+        if (err) {
+            logger.error('Error retrieving connection from the pool', err);
+            commonResponse.sendErrorResponse(res, 'Error retrieving connection from the pool', 500);
+            return;
         }
-    });
+
+        connection.beginTransaction((err) => {
+            if (err) {
+                logger.error('Error starting transaction', err);
+                commonResponse.sendErrorResponse(res, 'Error starting transaction', 500);
+                connection.release();
+            }else{
+
+                connection.query('SELECT * FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND IS_ACTIVE=? FOR UPDATE', [tableId, status.ACTIVE], (error, results, fields) => {
+                    if (error) {
+                        logger.error('Error retrieving data from database', error);
+                        commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
+                        connection.rollback(() => {
+                            connection.release();
+                        });
+                        return;
+                    }
+
+                    if (results.length !== 0) {
+                        logger.error('Table already reserved, Unable to reserve for user:', userId);
+                        commonResponse.sendErrorResponse(res, 'Table already reserved', 409);
+                        connection.rollback(() => {
+                            connection.release();
+                        });
+                        return;
+                    }
+
+                    let reservationPIN = generateReservationPIN();
+                    connection.query('INSERT INTO core_mobile_reservation (`RESERVED_USER_ID`,`RESERVED_TABLE_ID`,`RESERVATION_PIN`,`IS_ACTIVE`) VALUES(?,?,?,?)', [userId, tableId, reservationPIN, status.ACTIVE], (error, results, fields) => {
+                        if (error) {
+                            logger.error('Error reserving table', error);
+                            commonResponse.sendErrorResponse(res, 'Error reserving table', 500);
+                            connection.rollback(() => {
+                                connection.release();
+                            });
+                            return;
+                        }
+
+                        let reservationId = results.insertId;
+                        connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
+                            if (error) {
+                                logger.error('Error inserting data', error);
+                                commonResponse.sendErrorResponse(res, 'Error inserting data', 500);
+                                connection.rollback(() => {
+                                    connection.release();
+                                });
+                                return;
+                            }
+
+                            connection.commit((err) => {
+                                if (err) {
+                                    logger.error('Error committing transaction', err);
+                                    commonResponse.sendErrorResponse(res, 'Error committing transaction', 500);
+                                    connection.rollback(() => {
+                                        connection.release();
+                                    });
+                                    return;
+                                }
+
+                                commonResponse.sendSuccessResponse(res, {
+                                    "reservationPin": reservationPIN,
+                                    "reservationId": reservationId,
+                                });
+                                connection.release();
+                            });
+                        });
+                    });
+                });
+            }
+
+
+        });
+    },req.requestId);
 });
+
+
+/**
+ * @swagger
+ * /table/validate-reservation-pin:
+ *   post:
+ *     summary: Validate reservation PIN for a table
+ *     description: Validate the reservation PIN for a specific table.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tableId:
+ *                 type: string
+ *               reservationPin:
+ *                 type: string
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Successful validation
+ *       400:
+ *         description: Invalid request body
+ *       500:
+ *         description: Error retrieving data from the database
+ */
+router.post('/validate-reservation-pin', (req, res) => {
+    let {tableId, reservationPin, userId} = req.body;
+
+    dbConnection.getConnectionFromPool((err, connection) => {
+        if (err) {
+            logger.error('Error retrieving data from database', err);
+            commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
+        } else {
+             connection.query('SELECT RESERVATION_ID FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND RESERVATION_PIN=? AND IS_ACTIVE=?', [tableId, reservationPin, status.ACTIVE], (error, results, fields) => {
+                if (err) {
+                    logger.error('Unable to retrieve data', error);
+                    commonResponse.sendErrorResponse(res, "Unable to retrieve data", req.requestId);
+                } else {
+                    if (results.length >= 1) {
+                        const reservationId = results[0].RESERVATION_ID;
+                        connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
+                            if (error) {
+                                logger.error('Unable to insert data', err);
+                                commonResponse.sendErrorResponse(res, 'unable to insert data', 500);
+                            } else {
+                                commonResponse.sendSuccessResponse(res, {"reservationId": reservationId}, req.requestId);
+                            }
+                        })
+                    } else {
+                        logger.error('Unable join Table', error);
+                        commonResponse.sendErrorResponse(res, "Unable to join table", req.requestId);
+                    }
+                }
+            })
+        }
+
+    }, req.requestId)
+})
 
 
 function generateReservationPIN() {
@@ -146,4 +253,4 @@ function generateReservationPIN() {
     return otp;
 }
 
-module.exports=router;
+module.exports = router;
