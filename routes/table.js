@@ -3,6 +3,7 @@ const logger = require('../util/logger');
 const express = require('express');
 const {error} = require("winston");
 const commonResponse = require('../commonResponse/commonResponse');
+const Request = require("request");
 const router = express.Router();
 const status = {
     ACTIVE: 1,
@@ -66,7 +67,6 @@ router.get('/get-all-table-details', (req, res) => {
 
 });
 
-
 /**
  * @swagger
  * /table/get-table-status:
@@ -110,10 +110,8 @@ router.get('/get-table-status',(req,res)=>{
                 if(err){
                     logger.error('Unable retrieve data from database', err);
                     commonResponse.sendErrorResponse(res, 'Unable retrieve data from database', 500);
-                    console.log('inside error');
                 }else{
                     console.log(results);
-                    console.log('inside else');
                     if(results.length>=1){
                         commonResponse.sendSuccessResponse(res,{
                             'tableId':tableId,
@@ -131,13 +129,12 @@ router.get('/get-table-status',(req,res)=>{
     },req.requestId)
 })
 
-
 /**
  * @swagger
- * /table/get-reservation-pin:
+ * /user/join-table:
  *   post:
- *     summary: Get reservation PIN
- *     description: Retrieves or generates a reservation PIN for a user and a table.
+ *     summary: Join a table reservation
+ *     description: Creates a new reservation for a user to join a table
  *     requestBody:
  *       required: true
  *       content:
@@ -147,13 +144,11 @@ router.get('/get-table-status',(req,res)=>{
  *             properties:
  *               tableId:
  *                 type: string
- *                 description: The ID of the table for which reservation PIN is requested.
  *               userId:
  *                 type: string
- *                 description: The ID of the user for whom reservation PIN is requested.
  *     responses:
- *       200:
- *         description: Reservation PIN generated successfully
+ *       '200':
+ *         description: Successful operation
  *         content:
  *           application/json:
  *             schema:
@@ -161,23 +156,50 @@ router.get('/get-table-status',(req,res)=>{
  *               properties:
  *                 reservationPin:
  *                   type: string
- *                   description: The generated reservation PIN.
  *                 reservationId:
  *                   type: integer
- *                   description: The ID of the reservation.
- *       409:
- *         description: Table already reserved
- *       500:
+ *       '400':
+ *         description: Bad request. Invalid input parameters
+ *       '409':
+ *         description: Conflict. Table already reserved
+ *       '500':
  *         description: Internal server error
  */
-router.post('/get-reservation-pin', (req, res) => {
+router.post('/join-table', (req, res) => {
     let { tableId, userId } = req.body;
+    let guestMobileNumber;
+    let ownerMobileNumber;
 
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
             logger.error('Error acquire connection from the pool', err);
             commonResponse.sendErrorResponse(res, 'Error acquire connection from the pool', 500);
         }
+
+       connection.query('SELECT * FROM core_mobile_user WHERE USER_ID=?',[userId],(error,results,fields)=>{
+           if (err) {
+               logger.error('Unable to connect database', err);
+               commonResponse.sendErrorResponse(res, 'Unable to connect database', 500);
+           }else{
+               guestMobileNumber=results[0].MOBILE_NUMBER;
+           }
+
+       });
+
+        connection.query('SELECT core_mobile_user.MOBILE_NUMBER\n' +
+            'FROM core_mobile_user\n' +
+            'INNER JOIN core_mobile_reservation  ON core_mobile_user.USER_ID=core_mobile_reservation.RESERVED_USER_ID AND core_mobile_reservation.IS_ACTIVE=? AND core_mobile_reservation.RESERVED_TABLE_ID=?',[status.ACTIVE,tableId],(error,results,fields)=>{
+            if (err) {
+                logger.error('Unable to connect database', err);
+                commonResponse.sendErrorResponse(res, 'Unable to connect database', 500);
+            }else{
+                ownerMobileNumber=results[0].MOBILE_NUMBER;
+            }
+
+        });
+
+
+
 
         connection.beginTransaction((err) => {
             if (err) {
@@ -193,7 +215,6 @@ router.post('/get-reservation-pin', (req, res) => {
                         connection.rollback(() => {
                             connection.release();
                         });
-                        return;
                     }
 
                     if (results.length !== 0) {
@@ -202,49 +223,54 @@ router.post('/get-reservation-pin', (req, res) => {
                         connection.rollback(() => {
                             connection.release();
                         });
-                        return;
                     }
 
                     let reservationPIN = generateReservationPIN();
-                    connection.query('INSERT INTO core_mobile_reservation (`RESERVED_USER_ID`,`RESERVED_TABLE_ID`,`RESERVATION_PIN`,`IS_ACTIVE`) VALUES(?,?,?,?)', [userId, tableId, reservationPIN, status.ACTIVE], (error, results, fields) => {
-                        if (error) {
-                            logger.error('Error reserving table', error);
-                            commonResponse.sendErrorResponse(res, 'Error reserving table', 500);
-                            connection.rollback(() => {
-                                connection.release();
-                            });
-                            return;
-                        }
-
-                        let reservationId = results.insertId;
-                        connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
+                    if(sendReservationPIN(reservationPIN,ownerMobileNumber)){
+                        connection.query('INSERT INTO core_mobile_reservation (`RESERVED_USER_ID`,`RESERVED_TABLE_ID`,`RESERVATION_PIN`,`IS_ACTIVE`) VALUES(?,?,?,?)', [userId, tableId, reservationPIN, status.ACTIVE], (error, results, fields) => {
                             if (error) {
-                                logger.error('Error inserting data', error);
-                                commonResponse.sendErrorResponse(res, 'Error inserting data', 500);
+                                logger.error('Error reserving table', error);
+                                commonResponse.sendErrorResponse(res, 'Error reserving table', 500);
                                 connection.rollback(() => {
                                     connection.release();
                                 });
                                 return;
                             }
 
-                            connection.commit((err) => {
-                                if (err) {
-                                    logger.error('Error committing transaction', err);
-                                    commonResponse.sendErrorResponse(res, 'Error committing transaction', 500);
+                            let reservationId = results.insertId;
+                            connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
+                                if (error) {
+                                    logger.error('Error inserting data', error);
+                                    commonResponse.sendErrorResponse(res, 'Error inserting data', 500);
                                     connection.rollback(() => {
                                         connection.release();
                                     });
                                     return;
                                 }
 
-                                commonResponse.sendSuccessResponse(res, {
-                                    "reservationPin": reservationPIN,
-                                    "reservationId": reservationId,
+                                connection.commit((err) => {
+                                    if (err) {
+                                        logger.error('Error committing transaction', err);
+                                        commonResponse.sendErrorResponse(res, 'Error committing transaction', 500);
+                                        connection.rollback(() => {
+                                            connection.release();
+                                        });
+                                        return;
+                                    }
+
+                                    commonResponse.sendSuccessResponse(res, {
+                                        "reservationPin": reservationPIN,
+                                        "reservationId": reservationId,
+                                    });
+                                    connection.release();
                                 });
-                                connection.release();
                             });
                         });
-                    });
+                    }else{
+                        logger.error('Unable to send reservation PIN to user:', userId);
+                        commonResponse.sendErrorResponse(res, 'Unable to send reservation PIn to owner', 500);
+                    }
+
                 });
             }
 
@@ -252,7 +278,6 @@ router.post('/get-reservation-pin', (req, res) => {
         });
     },req.requestId);
 });
-
 
 /**
  * @swagger
@@ -321,5 +346,26 @@ function generateReservationPIN() {
     const otp = Math.floor(1000 + Math.random() * 9000);
     return otp;
 }
+function sendReservationPIN(PIN,ownerMobileNumber,guestMobileNumber) {
+    const message =
+        `Dear Customer,
+Your table reservation PIN is: ${PIN}. ${guestMobileNumber} Requested to join with your table.If you welcome,please share this PIN with the guest.
+Note: This PIN is valid until you close the bill.
+Thank you,
+[Zincat Technologies]`;
+    const url = `https://richcommunication.dialog.lk/api/sms/inline/send?q=15669742473072&destination=94${ownerMobileNumber.substring(1)}&message=${message}&from=Nalanda`
 
+    Request.get(url, (error, response, body) => {
+            if (response) {
+                logger.info("Send OTP to Mobile");
+                return true;
+            }
+            if (error) {
+                logger.info("Unable to sent OTP to mobile",error);
+                return false;
+            }
+        }
+    );
+
+}
 module.exports = router;
