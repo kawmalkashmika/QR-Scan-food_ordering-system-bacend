@@ -9,6 +9,7 @@ config/*.env
 
 # Ignore logs
 logs/
+log.txt
 
 # Ignore OS-specific files
 .DS_Store
@@ -19,3 +20,4 @@ npm-debug.log
 
 # Ignore Visual Studio Code settings
 .vscode/
+
