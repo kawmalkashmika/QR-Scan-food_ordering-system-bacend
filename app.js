@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 const port = 8080;
-const host='localhost'
+const host='0.0.0.0'
 
 app.use((req, res, next) => {
    //Add request id
