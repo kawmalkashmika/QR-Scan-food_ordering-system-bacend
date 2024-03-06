@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 const port = 8080;
-const host='localhost'
+const host='ec2-35-171-89-123.compute-1.amazonaws.com'
 
 
 
