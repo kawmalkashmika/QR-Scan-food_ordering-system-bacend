@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 const port = 8080;
-const host='0.0.0.0'
+const host='localhost'
 
 app.use((req, res, next) => {
    //Add request id
@@ -59,7 +59,7 @@ app.get('/log', (req, res) => {
       res.sendFile(logFilePath);
    });
 });
-app.listen(port, host,() => {
+app.listen(port,() => {
    logger.info(`Server is running on port ${port}`);
    logger.info(`Application running on ${environment} environment`);
    database.initializePool();

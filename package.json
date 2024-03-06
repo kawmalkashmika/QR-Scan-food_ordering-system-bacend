@@ -4,7 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "forever start app.js",
+    "stop" : "forever stop app.js"
   },
   "author": "kawmal.zincat@gmail.com",
   "license": "ISC",
@@ -12,6 +13,7 @@
     "compression": "^1.7.4",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "forever": "^4.0.3",
     "morgan": "^1.10.0",
     "mysql": "^2.18.1",
     "request": "^2.88.2",
