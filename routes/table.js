@@ -267,6 +267,7 @@ router.post('/reserve-table', (req, res) => {
  */
 router.post('/join-table', (req, res) => {
     let {tableId, userId} = req.body;
+
     let guestMobileNumber;
     let ownerMobileNumber;
     let reservationId;
@@ -275,7 +276,7 @@ router.post('/join-table', (req, res) => {
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
             logger.error('Error acquire connection from the pool', err);
-            commonResponse.sendErrorResponse(res, 'Error acquire connection from the pool', 500);
+            commonResponse.sendErrorResponse(res, 'Error acquire connection from the pool',req.requestId, 500);
             return;
         }
 
@@ -326,7 +327,7 @@ router.post('/join-table', (req, res) => {
             .catch((error) => {
                 // Handle error
                 logger.error('Error retrieving mobile numbers from database', error);
-                commonResponse.sendErrorResponse(res, 'Error retrieving mobile numbers from database', 500);
+                commonResponse.sendErrorResponse(res, 'Error retrieving mobile numbers from database',req.requestId, 500);
             })
             .finally(() => {
                 connection.release();
@@ -372,21 +373,21 @@ router.post('/validate-reservation-pin', (req, res) => {
             connection.query('SELECT RESERVATION_ID FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND RESERVATION_PIN=? AND IS_ACTIVE=?', [tableId, reservationPin, status.ACTIVE], (error, results, fields) => {
                 if (err) {
                     logger.error('Unable to retrieve data', error);
-                    commonResponse.sendErrorResponse(res, "Unable to retrieve data", req.requestId);
+                    commonResponse.sendErrorResponse(res, "Unable to retrieve data", req.requestId,500);
                 } else {
                     if (results.length >= 1) {
                         const reservationId = results[0].RESERVATION_ID;
                         connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
                             if (error) {
-                                logger.error('Unable to insert data', err);
-                                commonResponse.sendErrorResponse(res, 'unable to insert data', 500);
+                                logger.error('Unable to insert data',error);
+                                commonResponse.sendErrorResponse(res, 'unable to insert data', req.requestId,500);
                             } else {
                                 commonResponse.sendSuccessResponse(res, {"reservationId": reservationId}, req.requestId);
                             }
                         })
                     } else {
-                        logger.error('Unable join Table', error);
-                        commonResponse.sendErrorResponse(res, "Unable to join table", req.requestId);
+                        logger.error('Unable join Table');
+                        commonResponse.sendErrorResponse(res, "Invalid pin", req.requestId,400);
                     }
                 }
             })
