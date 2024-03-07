@@ -269,121 +269,69 @@ router.post('/join-table', (req, res) => {
     let {tableId, userId} = req.body;
     let guestMobileNumber;
     let ownerMobileNumber;
+    let reservationId;
+    let PIN;
 
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
             logger.error('Error acquire connection from the pool', err);
             commonResponse.sendErrorResponse(res, 'Error acquire connection from the pool', 500);
-            return
+            return;
         }
 
-        connection.query('SELECT * FROM core_mobile_user WHERE USER_ID=?', [userId], (error, results, fields) => {
-            if (err) {
-                logger.error('Unable to connect database', err);
-                commonResponse.sendErrorResponse(res, 'Unable to connect database', 500);
-            } else {
-                console.log("1")
-                console.log(results);
-                guestMobileNumber = results[0].MOBILE_NUMBER;
-            }
-
-        });
-
-        connection.query('SELECT core_mobile_user.MOBILE_NUMBER\n' +
-            'FROM core_mobile_user\n' +
-            'INNER JOIN core_mobile_reservation  ON core_mobile_user.USER_ID=core_mobile_reservation.RESERVED_USER_ID AND core_mobile_reservation.IS_ACTIVE=? AND core_mobile_reservation.RESERVED_TABLE_ID=?', [status.ACTIVE, tableId], (error, results, fields) => {
-            if (err) {
-                logger.error('Unable to connect database', err);
-                commonResponse.sendErrorResponse(res, 'Unable to connect database', 500);
-            } else {
-                if (results.length == 0) {
-                    logger.info('Table not reserved yet');
-                    commonResponse.sendErrorResponse(res, "Table not reserved", req.requestId, 400)
+        // Define promises for both queries
+        const queryOwnerMobile = new Promise((resolve, reject) => {
+            connection.query('SELECT u.MOBILE_NUMBER,r.RESERVATION_ID,r.RESERVATION_PIN FROM core_mobile_reservation as r join core_mobile_user as u on u.USER_ID=r.RESERVED_USER_ID WHERE r.RESERVED_TABLE_ID=? AND r.IS_ACTIVE=?;', [tableId,status.ACTIVE], (error, results, fields) => {
+                if (error) {
+                    reject(error);
                 } else {
-                    console.log("reserved User " + results);
-                    ownerMobileNumber = results[0].MOBILE_NUMBER;
-                }
-            }
+                    if (results.length >= 1){
+                        ownerMobileNumber = results[0].MOBILE_NUMBER;
+                        reservationId=results[0].RESERVATION_ID;
+                        PIN=results[0].RESERVATION_PIN;
 
-        });
-
-
-        connection.beginTransaction((err) => {
-            if (err) {
-                logger.error('Error starting transaction', err);
-                commonResponse.sendErrorResponse(res, 'Error starting transaction', 500);
-                connection.release();
-            } else {
-
-                connection.query('SELECT * FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND IS_ACTIVE=?', [tableId, status.ACTIVE], (error, results, fields) => {
-                    if (error) {
-                        logger.error('Error retrieving data from database', error);
-                        commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
-                        connection.rollback(() => {
-                            connection.release();
-                        });
-                    }
-
-                    if (results.length > 0) {
-                        logger.error('Table already reserved,Unable to reserve for user:', userId);
-                        commonResponse.sendErrorResponse(res, 'Table already reserved', 409);
-                        connection.rollback(() => {
-                            connection.release();
-                        });
-                    }
-
-                    let reservationPIN = generateReservationPIN();
-                    if (sendReservationPIN(reservationPIN, ownerMobileNumber, guestMobileNumber)) {
-                        connection.query('INSERT INTO core_mobile_reservation (`RESERVED_USER_ID`,`RESERVED_TABLE_ID`,`RESERVATION_PIN`,`IS_ACTIVE`) VALUES(?,?,?,?)', [userId, tableId, reservationPIN, status.ACTIVE], (error, results, fields) => {
-                            if (error) {
-                                logger.error('Error reserving table', error);
-                                commonResponse.sendErrorResponse(res, 'Error reserving table', 500);
-                                connection.rollback(() => {
-                                    connection.release();
-                                });
-                                return;
-                            }
-
-                            let reservationId = results.insertId;
-                            connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
-                                if (error) {
-                                    logger.error('Error inserting data', error);
-                                    commonResponse.sendErrorResponse(res, 'Error inserting data', 500);
-                                    connection.rollback(() => {
-                                        connection.release();
-                                    });
-                                    return;
-                                }
-
-                                connection.commit((err) => {
-                                    if (err) {
-                                        logger.error('Error committing transaction', err);
-                                        commonResponse.sendErrorResponse(res, 'Error committing transaction', 500);
-                                        connection.rollback(() => {
-                                            connection.release();
-                                        });
-                                        return;
-                                    }
-
-                                    commonResponse.sendSuccessResponse(res, {
-                                        "reservationPin": reservationPIN,
-                                        "reservationId": reservationId,
-                                    });
-                                    connection.release();
-                                });
-                            });
-                        });
+                        resolve();
                     } else {
-                        logger.error('Unable to send reservation PIN to user:', userId);
-                        commonResponse.sendErrorResponse(res, 'Unable to send reservation PIn to owner', 500);
+                        reject(new Error('Owner mobile number not found'));
                     }
-
-                });
-            }
-
-
+                }
+            });
         });
-    }, req.requestId);
+
+        const queryGuestMobile = new Promise((resolve, reject) => {
+            connection.query('SELECT MOBILE_NUMBER FROM core_mobile_user WHERE USER_ID=? ', [userId], (error, results, fields) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    if (results.length >= 1) {
+                        guestMobileNumber = results[0].MOBILE_NUMBER;
+                        resolve();
+                    } else {
+                        reject(new Error('Guest mobile number not found'));
+                    }
+                }
+            });
+        });
+
+        // Execute both promises
+        Promise.all([queryOwnerMobile, queryGuestMobile])
+            .then(() => {
+                // Both queries completed successfully, send SMS to both numbers
+               sendReservationPIN(PIN,ownerMobileNumber,guestMobileNumber);
+                commonResponse.sendSuccessResponse(res, {
+                    "rservationId":reservationId,
+                    "tableId":tableId
+                }, req.requestId);
+            })
+            .catch((error) => {
+                // Handle error
+                logger.error('Error retrieving mobile numbers from database', error);
+                commonResponse.sendErrorResponse(res, 'Error retrieving mobile numbers from database', 500);
+            })
+            .finally(() => {
+                connection.release();
+            });
+    },req.requestId);
 });
 
 /**
