@@ -397,6 +397,65 @@ router.post('/validate-reservation-pin', (req, res) => {
 })
 
 
+/**
+ * @swagger
+ * /table/close-table:
+ *   post:
+ *     summary: Close a table reservation
+ *     description: Close a table reservation by updating its status to inactive in the database.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tableId:
+ *                 type: string
+ *                 description: The ID of the table to close.
+ *               reservationId:
+ *                 type: string
+ *                 description: The ID of the reservation to close.
+ *     responses:
+ *       200:
+ *         description: Successful response upon closing the table reservation.
+ *       400:
+ *         description: Bad request if the required parameters are missing or invalid.
+ *       500:
+ *         description: Internal server error if there is a problem with the server.
+ */
+
+router.post('/close-table', (req, res) => {
+    let tableId = req.body.tableId;
+    let reservationId = req.body.reservationId;
+
+    console.log(tableId);
+    console.log(reservationId);
+
+    dbConnection.getConnectionFromPool((err, connection) => {
+        if (err) {
+            logger.error('Error retrieving data from database', err);
+            commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
+        } else {
+            connection.query('UPDATE core_mobile_reservation SET IS_ACTIVE=? WHERE RESERVATION_ID=? AND RESERVED_TABLE_ID=?', [status.INACTIVE, reservationId, tableId], (err, results, fields) => {
+                if (err) {
+                    logger.error('Unable to close table', err);
+                    commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
+                } else {
+                    console.log(results.affectedRows);
+                    if (results.affectedRows > 0) {
+                        logger.info("Table reservation close successfully")
+                        commonResponse.sendSuccessResponse(res, 'Table close successfully', req.requestId);
+                    } else {
+                        logger.error('Unable to close table', err);
+                        commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
+                    }
+                }
+            });
+        }
+    }, req.requestId);
+});
+
 function generateReservationPIN() {
     logger.info("Generating Reservation PIN");
     const otp = Math.floor(1000 + Math.random() * 9000);
