@@ -485,7 +485,7 @@ Thank you,
 
 }
 
-function rollbackAndRelease(connection, res, message, error, statusCode = 500) {
+function rollbackAndRelease(connection, res, message, error, statusCode = 409) {
     connection.rollback(() => {
         connection.release();
         logger.error(message, error);
