@@ -396,7 +396,6 @@ router.post('/validate-reservation-pin', (req, res) => {
     }, req.requestId)
 })
 
-
 /**
  * @swagger
  * /table/close-table:
@@ -424,7 +423,6 @@ router.post('/validate-reservation-pin', (req, res) => {
  *       500:
  *         description: Internal server error if there is a problem with the server.
  */
-
 router.post('/close-table', (req, res) => {
     let tableId = req.body.tableId;
     let reservationId = req.body.reservationId;
@@ -455,6 +453,47 @@ router.post('/close-table', (req, res) => {
         }
     }, req.requestId);
 });
+
+/**
+ * @swagger
+ * /table/get-reservation-details/{reservationId}:
+ *   get:
+ *     summary: Get reservation details by reservation ID.
+ *     description: Retrieve reservation details including order information by providing the reservation ID.
+ *     parameters:
+ *       - in: path
+ *         name: reservationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the reservation to retrieve details for.
+ *     responses:
+ *       200:
+ *         description: Details of the specified reservation and associated orders.
+ *       400:
+ *         description: Bad request if the reservation ID is missing or invalid.
+ *       500:
+ *         description: Internal server error if unable to retrieve reservation details.
+ */
+router.get('/get-reservation-details/:reservationId',(req,res)=>{
+    let reservationId=req.params.reservationId;
+    dbConnection.getConnectionFromPool((err, connection) => {
+        if (err) {
+            logger.error('Error retrieving data from database', err);
+            commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
+        }else{
+           connection.query('SELECT cmr.RESERVED_TABLE_ID,cmr.RESERVED_USER_ID,cmro.RESERVATION_ORDER_ID as ORDER_ID,cmro.USER_ID,cmro.ITEM_ID,i.Item_Genaral_Name,i.SELLING_PRICE,cmro.QUANTITY,(i.SELLING_PRICE*cmro.QUANTITY) as TOTAL,cmro.ORDER_STATUS FROM core_mobile_reservation as cmr INNER JOIN core_mobile_reservation_order as cmro ON cmr.RESERVATION_ID=cmro.RESERVATION_ID INNER JOIN core_inv_item as i ON i.Id_Item=cmro.ITEM_ID  WHERE cmr.RESERVATION_ID=? AND cmr.IS_ACTIVE=1 AND cmro.ORDER_STATUS!=0',[reservationId],(error,results,fields)=>{
+               if(error){
+                   logger.error("Unable to retrieve data from database ");
+                   commonResponse.sendErrorResponse(res,"Unable to retrive data from database",req.requestId,500);
+               }else{
+                   commonResponse.sendSuccessResponse(res,results,req.requestId);
+               }
+           })
+        }
+    });
+
+})
 
 function generateReservationPIN() {
     logger.info("Generating Reservation PIN");
