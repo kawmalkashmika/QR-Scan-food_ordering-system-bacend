@@ -14,7 +14,7 @@ const orderStatus = {
 
 const getItemPriceQuery="SELECT SELLING_PRICE FROM core_inv_item WHERE Id_Item=?";
 const placeOrderQuery="INSERT INTO core_mobile_reservation_order (`RESERVATION_ID`, `USER_ID`, `ITEM_ID`, `ORDER_STATUS`,`QUANTITY`) VALUES (?,?,?,?,?)";
-let checkOrderStatusQuery="SELECT ORDER_STATUS FROM core_mobile_reservation_order WHERE RESERVATION_ORDER_ID=?";
+let checkOrderStatusQuery="SELECT * FROM core_mobile_reservation_order WHERE RESERVATION_ORDER_ID=?";
 router.post('/calculate-current-bill', (req, res) => {
     let reservationId=req.body.reservationId;
     let userId=req.body.userId;
@@ -204,6 +204,47 @@ router.post('/edit-order',(req,res)=>{
 
 })
 
+/**
+ * @swagger
+ * /order/get-order-detail/{orderId}:
+ *   post:
+ *     summary: Get details of a specific order.
+ *     description: Retrieve details of the order specified by its ID.
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the order to retrieve details for.
+ *     responses:
+ *       200:
+ *         description: Details of the specified order.
+ *       400:
+ *         description: Bad request if the order ID is missing or invalid.
+ *       500:
+ *         description: Internal server error if unable to retrieve order details.
+ */
+router.post('/get-order-detail/:orderId',(req,res)=>{
+    const orderId = req.params.orderId;
+    console.log(orderId);
+    dbConnection.getConnectionFromPool((err,connection)=>{
+        if(err){
+            logger.error("Unable to connect database");
+            commonResponse.sendErrorResponse(res,"unable to connect database",req.requestId,500)
+        }else{
+            connection.query(checkOrderStatusQuery,[orderId],(error,results,fields)=>{
+                if(error){
+                    logger.error("Unable to retrieve order data")
+                    commonResponse.sendErrorResponse(res,"unable to retrieve data",req.requestId,500)
+                }else{
+                    console.log(results);
+                    commonResponse.sendSuccessResponse(res,results,req.requestId)
+                }
+            })
+        }
+    },req.requestId)
+})
 
 
 function placeSingleOrder(connection,reservationId,userId,itemId,quantity){
