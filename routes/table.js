@@ -320,7 +320,7 @@ router.post('/join-table', (req, res) => {
                 // Both queries completed successfully, send SMS to both numbers
                sendReservationPIN(PIN,ownerMobileNumber,guestMobileNumber);
                 commonResponse.sendSuccessResponse(res, {
-                    "rservationId":reservationId,
+                    "reservationId":reservationId,
                     "tableId":tableId
                 }, req.requestId);
             })
