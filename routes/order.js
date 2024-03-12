@@ -69,9 +69,9 @@ router.post('/calculate-current-bill', (req, res) => {
         }else{
 
                 calculateBill().then(id=>{
-                    console.log(id)
+
                 }).catch(error=>{
-                    console.log(error);
+                    logger.error(error);
                 })
         }
 
@@ -82,7 +82,6 @@ router.post('/calculate-current-bill', (req, res) => {
                     getItemPrice(itemList[i].itemId).then((price)=>{
                        bill=bill+(price*itemList[i].quantity);
                        if(i==itemList.length-1){
-                           console.log(i);
                           commonResponse.sendSuccessResponse(res,{"billValue":bill},req.requestId)
                        }
                     }).catch((error)=>{
@@ -152,7 +151,6 @@ router.post('/place-order',(req,res)=>{
             commonResponse.sendErrorResponse(res,"Unable to connect database",req.requestId,500)
         }else{
             placeSingleOrder(connection,reservationId,userId,itemId,quantity).then(results=>{
-                console.log(results.insertId);
                 commonResponse.sendSuccessResponse(res,{"orderId":results.insertId,
                                                             "orderStatus":orderStatus.PLACED,
                                                             },req.requestId);
@@ -209,7 +207,6 @@ router.post('/edit-order',(req,res)=>{
         updateOrderQuery=updateOrderQuery+updateQuantity
     }
 
-    console.log(updateOrderQuery);
 
     dbConnection.getConnectionFromPool((err,connection)=>{
         if(err){
@@ -270,7 +267,6 @@ router.post('/edit-order',(req,res)=>{
  */
 router.get('/get-order-detail/:orderId',(req,res)=>{
     const orderId = req.params.orderId;
-    console.log(orderId);
     dbConnection.getConnectionFromPool((err,connection)=>{
         if(err){
             logger.error("Unable to connect database");
@@ -281,7 +277,6 @@ router.get('/get-order-detail/:orderId',(req,res)=>{
                     logger.error("Unable to retrieve order data")
                     commonResponse.sendErrorResponse(res,"unable to retrieve data",req.requestId,500)
                 }else{
-                    console.log(results);
                     commonResponse.sendSuccessResponse(res,results,req.requestId)
                 }
             })

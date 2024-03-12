@@ -195,7 +195,6 @@ function generateOTP() {
 }
 
 function sendOTPtoMobile(otp,mobileNumber) {
-    console.log(mobileNumber.substring(1));
     const message =
         `Dear Customer,
 Your One-Time Password (OTP) for verification is: ${otp}. Please use this OTP to complete your verification process.

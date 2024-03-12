@@ -111,7 +111,6 @@ router.get('/get-table-status', (req, res) => {
                     logger.error('Unable retrieve data from database', err);
                     commonResponse.sendErrorResponse(res, 'Unable retrieve data from database', 500);
                 } else {
-                    console.log(results);
                     if (results.length >= 1) {
                         commonResponse.sendSuccessResponse(res, {
                             'tableId': tableId,
@@ -315,6 +314,7 @@ router.post('/join-table', (req, res) => {
         Promise.all([queryOwnerMobile, queryGuestMobile])
             .then(() => {
                 // Both queries completed successfully, send SMS to both numbers
+                connection.release();
                sendReservationPIN(PIN,ownerMobileNumber,guestMobileNumber);
                 commonResponse.sendSuccessResponse(res, {
                     "reservationId":reservationId,
@@ -323,11 +323,11 @@ router.post('/join-table', (req, res) => {
             })
             .catch((error) => {
                 // Handle error
+                connection.release();
                 logger.error('Error retrieving mobile numbers from database', error);
                 commonResponse.sendErrorResponse(res, 'Error retrieving mobile numbers from database',req.requestId, 500);
             })
             .finally(() => {
-                connection.release();
             });
     },req.requestId);
 });
@@ -369,6 +369,7 @@ router.post('/validate-reservation-pin', (req, res) => {
         } else {
             connection.query('SELECT RESERVATION_ID FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND RESERVATION_PIN=? AND IS_ACTIVE=?', [tableId, reservationPin, status.ACTIVE], (error, results, fields) => {
                 if (err) {
+                    connection.release();
                     logger.error('Unable to retrieve data', error);
                     commonResponse.sendErrorResponse(res, "Unable to retrieve data", req.requestId,500);
                 } else {
@@ -376,19 +377,21 @@ router.post('/validate-reservation-pin', (req, res) => {
                         const reservationId = results[0].RESERVATION_ID;
                         connection.query('INSERT INTO core_mobile_reservation_user (`RESERVATION_ID`, `USER_ID`) VALUES (?,?)', [reservationId, userId], (error, results, fields) => {
                             if (error) {
+                                connection.release();
                                 logger.error('Unable to insert data',error);
                                 commonResponse.sendErrorResponse(res, 'unable to insert data', req.requestId,500);
                             } else {
+                                connection.release();
                                 commonResponse.sendSuccessResponse(res, {"reservationId": reservationId}, req.requestId);
                             }
                         })
                     } else {
+                        connection.release();
                         logger.error('Unable join Table');
                         commonResponse.sendErrorResponse(res, "Invalid pin", req.requestId,400);
                     }
                 }
             })
-            connection.release();
         }
 
     }, req.requestId)
@@ -425,8 +428,7 @@ router.post('/close-table', (req, res) => {
     let tableId = req.body.tableId;
     let reservationId = req.body.reservationId;
 
-    console.log(tableId);
-    console.log(reservationId);
+
 
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
@@ -435,30 +437,34 @@ router.post('/close-table', (req, res) => {
         } else {
             connection.query('SELECT cmro.RESERVATION_ORDER_ID as ORDER_ID FROM core_mobile_reservation as cmr join core_mobile_reservation_order as cmro on cmr.RESERVATION_ID=cmro.RESERVATION_ID WHERE cmro.ORDER_STATUS=2 AND cmr.RESERVATION_ID=?',[reservationId],(error,results,fields)=>{
                 if(error){
+                    connection.release();
                     logger.error('Unable to close table', err);
                     commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
+
                 }else{
                     if(results.length>=1){
+                        connection.release();
                         logger.error('Unable to close table because of in-progress orders ', err);
                         commonResponse.sendErrorResponse(res, 'Unable to close table because of in-progress orders', req.requestId, 400);
                     }else{
                         connection.query('UPDATE core_mobile_reservation SET IS_ACTIVE=? WHERE RESERVATION_ID=? AND RESERVED_TABLE_ID=?', [status.INACTIVE, reservationId, tableId], (err, results, fields) => {
                             if (err) {
+                                connection.release();
                                 logger.error('Unable to close table', err);
                                 commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
                             } else {
-                                console.log(results.affectedRows);
                                 if (results.affectedRows > 0) {
+                                    connection.release();
                                     logger.info("Table reservation close successfully")
                                     commonResponse.sendSuccessResponse(res, 'Table close successfully', req.requestId);
                                 } else {
                                     logger.error('Unable to close table', err);
+                                    connection.release();
                                     commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
                                 }
                             }
                         });
                     }
-                    connection.release();
                 }
             })
 
@@ -501,14 +507,16 @@ router.get('/get-reservation-details/:reservationId',(req,res)=>{
                    commonResponse.sendErrorResponse(res,"Unable to retrieve data from database",req.requestId,500);
                }else{
                    if(results.length>=1){
+                       connection.release();
                        commonResponse.sendSuccessResponse(res,results,req.requestId);
                    }else{
+                       connection.release();
                        commonResponse.sendErrorResponse(res,"No table reservation data",req.requestId,204);
                    }
 
                }
            })
-            connection.release();
+
         }
     },req.requestId);
 
