@@ -388,6 +388,7 @@ router.post('/validate-reservation-pin', (req, res) => {
                     }
                 }
             })
+            connection.release();
         }
 
     }, req.requestId)
@@ -457,6 +458,7 @@ router.post('/close-table', (req, res) => {
                             }
                         });
                     }
+                    connection.release();
                 }
             })
 
@@ -506,6 +508,7 @@ router.get('/get-reservation-details/:reservationId',(req,res)=>{
 
                }
            })
+            connection.release();
         }
     },req.requestId);
 
