@@ -435,21 +435,34 @@ router.post('/close-table', (req, res) => {
             logger.error('Error retrieving data from database', err);
             commonResponse.sendErrorResponse(res, 'Error retrieving data from database', 500);
         } else {
-            connection.query('UPDATE core_mobile_reservation SET IS_ACTIVE=? WHERE RESERVATION_ID=? AND RESERVED_TABLE_ID=?', [status.INACTIVE, reservationId, tableId], (err, results, fields) => {
-                if (err) {
+            connection.query('SELECT cmro.RESERVATION_ORDER_ID as ORDER_ID FROM core_mobile_reservation as cmr join core_mobile_reservation_order as cmro on cmr.RESERVATION_ID=cmro.RESERVATION_ID WHERE cmro.ORDER_STATUS=2 AND cmr.RESERVATION_ID=?',[reservationId],(error,results,fields)=>{
+                if(error){
                     logger.error('Unable to close table', err);
                     commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
-                } else {
-                    console.log(results.affectedRows);
-                    if (results.affectedRows > 0) {
-                        logger.info("Table reservation close successfully")
-                        commonResponse.sendSuccessResponse(res, 'Table close successfully', req.requestId);
-                    } else {
-                        logger.error('Unable to close table', err);
-                        commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
+                }else{
+                    if(results.length>=1){
+                        logger.error('Unable to close table because of in-progress orders ', err);
+                        commonResponse.sendErrorResponse(res, 'Unable to close table because of in-progress orders', req.requestId, 400);
+                    }else{
+                        connection.query('UPDATE core_mobile_reservation SET IS_ACTIVE=? WHERE RESERVATION_ID=? AND RESERVED_TABLE_ID=?', [status.INACTIVE, reservationId, tableId], (err, results, fields) => {
+                            if (err) {
+                                logger.error('Unable to close table', err);
+                                commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
+                            } else {
+                                console.log(results.affectedRows);
+                                if (results.affectedRows > 0) {
+                                    logger.info("Table reservation close successfully")
+                                    commonResponse.sendSuccessResponse(res, 'Table close successfully', req.requestId);
+                                } else {
+                                    logger.error('Unable to close table', err);
+                                    commonResponse.sendErrorResponse(res, 'Unable to close table', req.requestId, 500);
+                                }
+                            }
+                        });
                     }
                 }
-            });
+            })
+
         }
     }, req.requestId);
 });
@@ -494,6 +507,8 @@ router.get('/get-reservation-details/:reservationId',(req,res)=>{
     });
 
 })
+
+router.get('/')
 
 function generateReservationPIN() {
     logger.info("Generating Reservation PIN");
