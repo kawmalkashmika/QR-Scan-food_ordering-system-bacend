@@ -487,6 +487,7 @@ router.post('/close-table', (req, res) => {
  */
 router.get('/get-reservation-details/:reservationId',(req,res)=>{
     let reservationId=req.params.reservationId;
+
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
             logger.error('Error retrieving data from database', err);
@@ -495,15 +496,20 @@ router.get('/get-reservation-details/:reservationId',(req,res)=>{
            connection.query('SELECT cmr.RESERVED_TABLE_ID,cmr.RESERVED_USER_ID,cmro.RESERVATION_ORDER_ID as ORDER_ID,cmro.USER_ID,cmro.ITEM_ID,i.Item_Genaral_Name,i.Item_Image_Path,i.SELLING_PRICE,cmro.QUANTITY,(i.SELLING_PRICE*cmro.QUANTITY) as TOTAL,CASE WHEN cmro.ORDER_STATUS = 1 THEN \'PLACED\' WHEN cmro.ORDER_STATUS = 2 THEN \'PROGRESS\' WHEN cmro.ORDER_STATUS = 3 THEN \'SERVED\' WHEN cmro.ORDER_STATUS = 0 THEN \'CANCELED\' ELSE cmro.ORDER_STATUS END AS ORDER_STATUS FROM core_mobile_reservation as cmr INNER JOIN core_mobile_reservation_order as cmro ON cmr.RESERVATION_ID=cmro.RESERVATION_ID INNER JOIN core_inv_item as i ON i.Id_Item=cmro.ITEM_ID  WHERE cmr.RESERVATION_ID=? AND cmr.IS_ACTIVE=1 AND cmro.ORDER_STATUS!=0',[reservationId],(error,results,fields)=>{
                if(error){
                    logger.error("Unable to retrieve data from database ");
-                   commonResponse.sendErrorResponse(res,"Unable to retrive data from database",req.requestId,500);
+                   commonResponse.sendErrorResponse(res,"Unable to retrieve data from database",req.requestId,500);
                }else{
-                   commonResponse.sendSuccessResponse(res,results,req.requestId);
+                   if(results.length>=1){
+                       commonResponse.sendSuccessResponse(res,results,req.requestId);
+                   }else{
+                       commonResponse.sendErrorResponse(res,"No table reservation data",req.requestId,204);
+                   }
+
                }
            })
         }
-    });
+    },req.requestId);
 
-})
+});
 
 
 function generateReservationPIN() {
