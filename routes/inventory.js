@@ -34,7 +34,8 @@ router.get('/get-all-item-details', (req, res) => {
             return;
         }
 
-        connection.query('SELECT Id_Item_Sub_Category,Item_Sub_Category_Name,Image_Path  FROM core_inv_item_sub_category WHERE Is_Active=1', (error, results, fields) => {
+        connection.query('SELECT Id_Item_Sub_Category,Item_Sub_Category_Name,Image_Path  FROM core_inv_item_sub_category WHERE Is_Active=1 ORDER BY \n' +
+            'Item_Sub_Category_Name ASC; ', (error, results, fields) => {
             if (error) {
                 connection.release();
                 logger.error('Error retrieving data from database', error);
@@ -53,7 +54,7 @@ router.get('/get-all-item-details', (req, res) => {
 
                 const categoryObj = results.shift();
 
-                connection.query('SELECT ii.Id_Item,ii.Id_Item_Registry,ii.Item_Genaral_Name,ii.SELLING_PRICE,ii.IS_LOYALTY_ELIGIBLE,ii.LOYALTY_POINTS,ii.Item_Image_Path,ir.Id_Item_Registry,ir.Id_Item_Sub_Category FROM core_inv_item as ii  join core_inv_item_registry as ir on ii.Id_Item=ir.Id_Item_Registry WHERE Id_Item_Sub_Category=?', [categoryObj.Id_Item_Sub_Category], (error, results, fields) => {
+                connection.query('SELECT ii.Id_Item,ii.Id_Item_Registry,ii.Item_Genaral_Name,ii.SELLING_PRICE,ii.IS_LOYALTY_ELIGIBLE,ii.LOYALTY_POINTS,ii.Item_Image_Path,ir.Id_Item_Registry,ir.Id_Item_Sub_Category FROM core_inv_item as ii  join core_inv_item_registry as ir on ii.Id_Item=ir.Id_Item_Registry WHERE Id_Item_Sub_Category=? ORDER BY Item_Genaral_Name ASC', [categoryObj.Id_Item_Sub_Category], (error, results, fields) => {
                     if (error) {
                         connection.release();
                         logger.error('Error retrieving data from database', error);
