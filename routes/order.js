@@ -225,7 +225,7 @@ router.post('/edit-order',(req,res)=>{
  *       500:
  *         description: Internal server error if unable to retrieve order details.
  */
-router.post('/get-order-detail/:orderId',(req,res)=>{
+router.get('/get-order-detail/:orderId',(req,res)=>{
     const orderId = req.params.orderId;
     console.log(orderId);
     dbConnection.getConnectionFromPool((err,connection)=>{
