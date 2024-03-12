@@ -15,6 +15,48 @@ const orderStatus = {
 const getItemPriceQuery="SELECT SELLING_PRICE FROM core_inv_item WHERE Id_Item=?";
 const placeOrderQuery="INSERT INTO core_mobile_reservation_order (`RESERVATION_ID`, `USER_ID`, `ITEM_ID`, `ORDER_STATUS`,`QUANTITY`) VALUES (?,?,?,?,?)";
 let checkOrderStatusQuery="SELECT * FROM core_mobile_reservation_order WHERE RESERVATION_ORDER_ID=?";
+
+
+/**
+ * @swagger
+ * /calculate-current-bill:
+ *   post:
+ *     summary: Calculate the current bill
+ *     description: Calculate the current bill based on reservation ID, user ID, and item list.
+ *     parameters:
+ *       - in: body
+ *         name: requestBody
+ *         required: true
+ *         description: Object containing reservation ID, user ID, and item list.
+ *         schema:
+ *           type: object
+ *           properties:
+ *             reservationId:
+ *               type: string
+ *               description: Reservation ID.
+ *             userId:
+ *               type: string
+ *               description: User ID.
+ *             itemList:
+ *               type: array
+ *               description: List of items.
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   itemId:
+ *                     type: string
+ *                     description: Item ID.
+ *                   quantity:
+ *                     type: number
+ *                     description: Quantity of the item.
+ *     responses:
+ *       200:
+ *         description: Bill calculation successful.
+ *       400:
+ *         description: Bad request. Missing parameters.
+ *       500:
+ *         description: Internal server error.
+ */
 router.post('/calculate-current-bill', (req, res) => {
     let reservationId=req.body.reservationId;
     let userId=req.body.userId;
@@ -25,6 +67,7 @@ router.post('/calculate-current-bill', (req, res) => {
             commonResponse.sendErrorResponse(res, "Unable to connect to database", req.requestId, 500);
             return;
         }else{
+
                 calculateBill().then(id=>{
                     console.log(id)
                 }).catch(error=>{

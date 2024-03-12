@@ -67,7 +67,6 @@ router.get('/get-all-table-details', (req, res) => {
 
 });
 
-
 /**
  * @swagger
  * /table/get-table-status:
@@ -129,7 +128,6 @@ router.get('/get-table-status', (req, res) => {
         }
     }, req.requestId)
 })
-
 
 /**
  * @swagger
@@ -227,7 +225,6 @@ router.post('/reserve-table', (req, res) => {
         });
     }, req.requestId);
 });
-
 
 /**
  * @swagger
@@ -508,14 +505,12 @@ router.get('/get-reservation-details/:reservationId',(req,res)=>{
 
 })
 
-router.get('/')
 
 function generateReservationPIN() {
     logger.info("Generating Reservation PIN");
     const otp = Math.floor(1000 + Math.random() * 9000);
     return otp;
 }
-
 function sendReservationPIN(PIN, ownerMobileNumber, guestMobileNumber) {
     const message =
         `Dear Customer,
@@ -538,7 +533,6 @@ Thank you,
     );
 
 }
-
 function rollbackAndRelease(connection, res, message, error, statusCode = 409) {
     connection.rollback(() => {
         connection.release();
