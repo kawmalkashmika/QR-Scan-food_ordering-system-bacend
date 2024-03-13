@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const commonResponse = require('../commonResponse/commonResponse');
 const {response, request} = require("express");
-const {error} = require("winston");
+const {error, rejections} = require("winston");
 const orderStatus = {
     PLACED: 1,
     PROGRESS: 2,
@@ -18,74 +18,91 @@ let checkOrderStatusQuery="SELECT * FROM core_mobile_reservation_order WHERE RES
 
 
 /**
- * @swagger
- * /calculate-current-bill:
- *   post:
- *     summary: Calculate the current bill
- *     description: Calculate the current bill based on reservation ID, user ID, and item list.
- *     parameters:
- *       - in: body
- *         name: requestBody
- *         required: true
- *         description: Object containing reservation ID, user ID, and item list.
- *         schema:
- *           type: object
- *           properties:
- *             reservationId:
- *               type: string
- *               description: Reservation ID.
- *             userId:
- *               type: string
- *               description: User ID.
- *             itemList:
- *               type: array
- *               description: List of items.
- *               items:
- *                 type: object
- *                 properties:
- *                   itemId:
- *                     type: string
- *                     description: Item ID.
- *                   quantity:
- *                     type: number
- *                     description: Quantity of the item.
- *     responses:
- *       200:
- *         description: Bill calculation successful.
- *       400:
- *         description: Bad request. Missing parameters.
- *       500:
- *         description: Internal server error.
- */
+* @swagger
+* /order/calculate-current-bill:
+*   post:
+*     summary: Calculate current bill for a reservation
+*     description: Calculates the current bill for a given reservation based on the items ordered.
+*     requestBody:
+*       required: true
+*       content:
+*         application/json:
+*           schema:
+    *             type: object
+*             properties:
+*               reservationId:
+    *                 type: string
+*                 description: The ID of the reservation for which bill needs to be calculated.
+*     responses:
+*       200:
+*         description: Successful response. Returns the calculated bill value.
+*         content:
+*           application/json:
+*             schema:
+    *               type: object
+*               properties:
+*                 billValue:
+    *                   type: number
+*                   description: The calculated bill value.
+*       400:
+*         description: Bad request. Invalid input data.
+*       500:
+*         description: Internal server error. Unable to calculate bill.
+*/
 router.post('/calculate-current-bill', (req, res) => {
     let reservationId=req.body.reservationId;
-    let userId=req.body.userId;
-    let itemList=req.body.itemList;
+    let itemList=[];
+
+
+
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
             logger.error("Unable to connect to database");
             commonResponse.sendErrorResponse(res, "Unable to connect to database", req.requestId, 500);
             return;
         }else{
-
-                calculateBill().then(id=>{
-
+            getItemList(reservationId).then(results=>{
+                itemList=results;
+                console.log(itemList);
+                calculateBill().then(bill=>{
+                    commonResponse.sendSuccessResponse(res,{"TotalBill":bill },req.requestId)
                 }).catch(error=>{
                     logger.error(error);
+                    commonResponse.sendErrorResponse(res,"Unable to process bill",req.requestId,500);
                 })
+            }).catch(error=>{
+                console.log(error);
+                commonResponse.sendErrorResponse(res,"Unable to process bill",req.requestId,500);
+            }).finally(()=>{
+                connection.release();
+            })
+
         }
 
+        function getItemList(reservationId){
+            return new Promise((resolve, reject)=>{
+                let getItemListQuery='SELECT core_mobile_reservation_order.ITEM_ID,core_mobile_reservation_order.QUANTITY FROM core_mobile_reservation JOIN core_mobile_reservation_order ON core_mobile_reservation.RESERVATION_ID=core_mobile_reservation_order.RESERVATION_ID WHERE core_mobile_reservation.RESERVATION_ID=? AND core_mobile_reservation_order.ORDER_STATUS=3;';
+                connection.query(getItemListQuery,[reservationId],(error, results,fields)=>{
+                   if(error){
+                       reject(error);
+                   }else{
+                       resolve(results);
+                   }
+                });
+            });
+
+        }
         function calculateBill(){
             let bill=0;
             return new Promise((resolve,reject)=>{
                 for (let i = 0; i < itemList.length; i++) {
-                    getItemPrice(itemList[i].itemId).then((price)=>{
-                       bill=bill+(price*itemList[i].quantity);
+                    getItemPrice(itemList[i].ITEM_ID).then((price)=>{
+                       bill=bill+(price*itemList[i].QUANTITY);
                        if(i==itemList.length-1){
-                          commonResponse.sendSuccessResponse(res,{"billValue":bill},req.requestId)
+                          resolve(bill);
                        }
                     }).catch((error)=>{
-                        commonResponse.sendErrorResponse(res,"Unable to calculate bill",req.requestId,500);
+                        reject(error);
                     })
                 }
             })
