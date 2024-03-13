@@ -20,7 +20,7 @@ let checkOrderStatusQuery="SELECT * FROM core_mobile_reservation_order WHERE RES
 /**
 * @swagger
 * /order/calculate-current-bill:
-*   post:
+*   get:
 *     summary: Calculate current bill for a reservation
 *     description: Calculates the current bill for a given reservation based on the items ordered.
 *     requestBody:
@@ -49,7 +49,7 @@ let checkOrderStatusQuery="SELECT * FROM core_mobile_reservation_order WHERE RES
 *       500:
 *         description: Internal server error. Unable to calculate bill.
 */
-router.post('/calculate-current-bill', (req, res) => {
+router.get('/calculate-current-bill', (req, res) => {
     let reservationId=req.body.reservationId;
     let itemList=[];
 
