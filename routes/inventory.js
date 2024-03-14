@@ -3,6 +3,8 @@ const logger = require('../util/logger');
 const express = require('express');
 const router = express.Router();
 const commonResponse = require('../commonResponse/commonResponse');
+const {error} = require("winston");
+const {sendSuccessResponse} = require("../commonResponse/commonResponse");
 
 
 /**
@@ -25,7 +27,7 @@ const commonResponse = require('../commonResponse/commonResponse');
  *       500:
  *         description: Internal server error
  */
-router.get('/get-all-item-details', (req, res) => {
+/*router.get('/get-all-item-details', (req, res) => {
 
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
@@ -79,6 +81,85 @@ router.get('/get-all-item-details', (req, res) => {
             processCategories();
         });
     }, req.requestId);
+});*/
+
+router.get('/get-all-item-details',(req,res)=>{
+    dbConnection.getConnectionFromPool((err, connection) => {
+        if (err) {
+            logger.error('Error getting database connection', err);
+            commonResponse.sendErrorResponse(res, "Error getting database connection", req.requestId);
+            return;
+        }else{
+
+            let categoryQuery="SELECT Id_Item_Sub_Category,Item_Sub_Category_Name,Image_Path FROM core_inv_item_sub_category WHERE Is_Active=1 ORDER BY Item_Sub_Category_Name ASC";
+            let itemQuery="SELECT core_inv_item_registry.Id_Item_Registry,core_inv_item_registry.Id_Item_Sub_Category,core_inv_item.Id_Item,core_inv_item.Item_Genaral_Name,core_inv_item.SELLING_PRICE,core_inv_item.Item_Image_Path FROM core_inv_item_registry JOIN core_inv_item ON  core_inv_item.Id_Item_Registry=core_inv_item_registry.Id_Item_Registry WHERE core_inv_item_registry.Id_Item_Sub_Category=?";
+
+            let getItemCategories=new Promise((resolve, reject)=>{
+                connection.query(categoryQuery,[],(error,results,fields)=>{
+                    if(error){
+                        logger.error('Unable to get categories ',error);
+                        reject(error);
+                    }else{
+                            let categoryArray=results;
+                           resolve(categoryArray);
+                    }
+                });
+            });
+
+            function getItems(categoryId){
+               return  new Promise((resolve, reject) => {
+                    connection.query(itemQuery,[categoryId],(error,results,fields)=>{
+                        if(error){
+                            logger.error('Unable to get items ',error);
+                            reject(error);
+                        }else{
+                            console.log(categoryId)
+                            resolve(results);
+                            console.log("end")
+                        }
+                    });
+                });
+            }
+
+            let getData=new Promise((resolve, reject) => {
+                let data=[]
+                getItemCategories.then(categoryArray=>{
+                    for (let i = 0; i <= categoryArray.length-1; i++) {
+                        getItems(categoryArray[i].Id_Item_Sub_Category).then(itemList=>{
+                            let obj={
+                                "catrgoryId": categoryArray[i].Id_Item_Sub_Category,
+                                "categoryName": categoryArray[i].Item_Sub_Category_Name,
+                                "categoryImage": categoryArray[i].Image_Path,
+                                "items": itemList
+                            }
+
+                            data.push(obj);
+
+                            if(i==categoryArray.length-1){
+                                resolve(data);
+                            }
+
+                        }).catch(error=>{
+                            reject(error);
+                        })
+                    }
+                }).catch(error=>{
+                    reject(error);
+                })
+            })
+
+            getData.then(data =>{
+                sendSuccessResponse(res,data,req.requestId)
+            }).then(error =>{
+                console.log(error);
+            })
+
+
+        }
+    },req.requestId)
+
+
+
 });
 
 module.exports = router;
