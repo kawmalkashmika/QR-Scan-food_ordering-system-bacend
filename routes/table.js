@@ -9,6 +9,11 @@ const status = {
     ACTIVE: 1,
     INACTIVE: 0,
 };
+const pinStatus={
+    PENDING:'PENDING',
+    SENT:'SENT',
+    RESENT:'RESENT'
+}
 const tableStatus = {
     RESERVED: "reserved",
     AVAILABLE: "available",
@@ -269,6 +274,8 @@ router.post('/join-table', (req, res) => {
     let reservationId;
     let PIN;
 
+    console.log('123')
+
     dbConnection.getConnectionFromPool((err, connection) => {
         if (err) {
             logger.error('Error acquire connection from the pool', err);
@@ -310,16 +317,59 @@ router.post('/join-table', (req, res) => {
             });
         });
 
+        //Check PIN status
+        const queryCheckPinStatus=new Promise((resolve, reject)=>{
+            connection.query('SELECT PIN_STATUS FROM core_mobile_reservation WHERE RESERVED_TABLE_ID=? AND IS_ACTIVE=?',[tableId,status.ACTIVE],(error,results,fields)=>{
+                if(error){
+                    logger.error("Unable to retrive data from database");
+                    reject(error);
+                }else{
+                    resolve(results[0].PIN_STATUS==pinStatus.PENDING);
+                }
+            })
+        })
+
         // Execute both promises
         Promise.all([queryOwnerMobile, queryGuestMobile])
             .then(() => {
-                // Both queries completed successfully, send SMS to both numbers
-                connection.release();
-               sendReservationPIN(PIN,ownerMobileNumber,guestMobileNumber);
-                commonResponse.sendSuccessResponse(res, {
-                    "reservationId":reservationId,
-                    "tableId":tableId
-                }, req.requestId);
+              console.log('1');
+                queryCheckPinStatus
+                    .then(pinState => {
+                        console.log(pinState)
+                        if(pinState==true){
+                            console.log('2');
+                            connection.query('UPDATE core_mobile_reservation SET PIN_STATUS=? WHERE IS_ACTIVE=? AND RESERVED_TABLE_ID=?',[pinStatus.SENT,status.ACTIVE,tableId],(error,results,fields)=>{
+                                if(error){
+                                    console.log('3')
+                                    logger.error('Unable to update reservation PIN status',error);
+                                    commonResponse.sendErrorResponse(res,"Unable to update reservation PIN status",req.requestId,500);
+                                    connection.release();
+                                }else{
+                                    console.log("4");
+                                    console.log(results.affectedRows);
+                                    if(results.affectedRows >0){
+                                        console.log('3')
+                                        connection.release();
+                                        sendReservationPIN(PIN,ownerMobileNumber,guestMobileNumber);
+                                        commonResponse.sendSuccessResponse(res, {
+                                            "reservationId":reservationId,
+                                            "tableId":tableId
+                                        }, req.requestId);
+                                    }
+                                }
+                            })
+                        }else{
+                            commonResponse.sendSuccessResponse(res, {
+                                "reservationId":reservationId,
+                                "tableId":tableId
+                            }, req.requestId);
+                        }
+                    })
+                    .catch(error => {
+                        connection.release()
+                        console.error("Error occurred while checking PIN status:", error);
+                        commonResponse.sendErrorResponse(res,"Unable to update reservation PIN",req.requestId,500);
+                    })
             })
             .catch((error) => {
                 // Handle error
