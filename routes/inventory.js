@@ -7,7 +7,8 @@ const {error} = require("winston");
 const {sendSuccessResponse} = require("../commonResponse/commonResponse");
 
 
-/**
+/*
+*
  * @swagger
  * /inventory/get-all-item-details:
  *   get:
@@ -26,7 +27,7 @@ const {sendSuccessResponse} = require("../commonResponse/commonResponse");
  *                   // Define properties based on the fields returned by the query
  *       500:
  *         description: Internal server error
- */
+*/
 /*router.get('/get-all-item-details', (req, res) => {
 
     dbConnection.getConnectionFromPool((err, connection) => {
